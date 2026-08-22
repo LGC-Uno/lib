@@ -246,6 +246,16 @@ end
 local WhitelistedMouse = {Enum.UserInputType.MouseButton1, Enum.UserInputType.MouseButton2,Enum.UserInputType.MouseButton3}
 local BlacklistedKeys = {Enum.KeyCode.Unknown,Enum.KeyCode.W,Enum.KeyCode.A,Enum.KeyCode.S,Enum.KeyCode.D,Enum.KeyCode.Up,Enum.KeyCode.Left,Enum.KeyCode.Down,Enum.KeyCode.Right,Enum.KeyCode.Slash,Enum.KeyCode.Tab,Enum.KeyCode.Backspace,Enum.KeyCode.Escape}
 
+local SaveCfgDebounceThread = nil
+
+local function SaveCfgDebounced()
+	if SaveCfgDebounceThread then return end
+	SaveCfgDebounceThread = task.delay(1, function()
+		SaveCfgDebounceThread = nil
+		SaveCfg(game.GameId)
+	end)
+end
+
 local function CheckKey(Table, Key)
 	for _, v in next, Table do
 		if v == Key then
@@ -484,31 +494,8 @@ function OrionLib:MakeWindow(WindowConfig)
 	WindowConfig.IntroIcon = WindowConfig.IntroIcon or "rbxassetid://8834748103"
 	OrionLib.Folder = WindowConfig.ConfigFolder
 	OrionLib.SaveCfg = WindowConfig.SaveConfig
-
-	pcall(function()
-		local fetchSuccess, fetchResult = pcall((game :: any).HttpGet, game, "https://raw.githubusercontent.com/SiriusSoftwareLtd/Rayfield/refs/heads/main/reporter.lua")
-		if fetchSuccess and #fetchResult > 0 then
-			local execSuccess, Analytics = pcall(function()
-				return (loadstring(fetchResult) :: any)()
-			end)
-			if execSuccess and Analytics then
-				local reporter = Analytics.new({
-					url          = "https://rayfield-collect.sirius-software-ltd.workers.dev",
-					token        = "e1712bdd9e7aafe203236be61f472609e5ec8efad62aa86244b96aaca0c22267",
-					product_name = "Orion",
-					category     = "UILibrary",
-				})
-				pcall(function()
-					reporter:windowCreated({
-						script_name       = WindowConfig.Name,
-						script_version    = 'Orion Stable',
-						interface_version = 'Orion UI Stable',
-						config_saving     = WindowConfig.SaveConfig,
-					})
-				end)
-			end
-		end
-	end)
+	WindowConfig.ToggleKey = WindowConfig.ToggleKey or Enum.KeyCode.RightShift
+	OrionLib.ToggleKey = WindowConfig.ToggleKey
 
 	if WindowConfig.SaveConfig then
 		if not isfolder(WindowConfig.ConfigFolder) then
@@ -676,14 +663,14 @@ function OrionLib:MakeWindow(WindowConfig)
 		UIHidden = true
 		OrionLib:MakeNotification({
 			Name = "Interface Hidden",
-			Content = "Tap RightShift to reopen the interface",
+			Content = "Tap " .. WindowConfig.ToggleKey.Name .. " to reopen the interface",
 			Time = 5
 		})
 		WindowConfig.CloseCallback()
 	end)
 
 	AddConnection(UserInputService.InputBegan, function(Input)
-		if Input.KeyCode == Enum.KeyCode.RightShift and UIHidden then
+		if Input.KeyCode == OrionLib.ToggleKey and UIHidden then
 			MainWindow.Visible = true
 		end
 	end)
@@ -820,6 +807,21 @@ function OrionLib:MakeWindow(WindowConfig)
 
 		local function GetElements(ItemParent)
 			local ElementFunction = {}
+
+			local function MakeElementDestroy(Frame)
+				return function()
+					for _, List in next, OrionLib.ThemeObjects do
+						for Index = #List, 1, -1 do
+							local Object = List[Index]
+							if Object == Frame or (typeof(Object) == "Instance" and Object:IsDescendantOf(Frame)) then
+								table.remove(List, Index)
+							end
+						end
+					end
+					Frame:Destroy()
+				end
+			end
+
 			function ElementFunction:AddLabel(Text)
 				local LabelFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 5), {
 					Size = UDim2.new(1, 0, 0, 30),
@@ -830,26 +832,21 @@ function OrionLib:MakeWindow(WindowConfig)
 						Size = UDim2.new(1, -12, 1, 0),
 						Position = UDim2.new(0, 12, 0, 0),
 						Font = Enum.Font.GothamBold,
-						Name = "Content"
+						Name = "Content",
+						TextWrapped = true
 					}), "Text"),
 					AddThemeObject(MakeElement("Stroke"), "Stroke")
 				}), "Second")
+
+				AddConnection(LabelFrame.Content:GetPropertyChangedSignal("TextBounds"), function()
+					LabelFrame.Size = UDim2.new(1, 0, 0, math.max(30, LabelFrame.Content.TextBounds.Y + 16))
+				end)
 
 				local LabelFunction = {}
 				function LabelFunction:Set(ToChange)
 					LabelFrame.Content.Text = ToChange
 				end
-				function LabelFunction:Destroy()
-					for _, List in next, OrionLib.ThemeObjects do
-						for Index = #List, 1, -1 do
-							local Object = List[Index]
-							if Object == LabelFrame or (typeof(Object) == "Instance" and Object:IsDescendantOf(LabelFrame)) then
-								table.remove(List, Index)
-							end
-						end
-					end
-					LabelFrame:Destroy()
-				end
+				LabelFunction.Destroy = MakeElementDestroy(LabelFrame)
 				return LabelFunction
 			end
 			function ElementFunction:AddParagraph(Text, Content)
@@ -888,6 +885,7 @@ function OrionLib:MakeWindow(WindowConfig)
 				function ParagraphFunction:Set(ToChange)
 					ParagraphFrame.Content.Text = ToChange
 				end
+				ParagraphFunction.Destroy = MakeElementDestroy(ParagraphFrame)
 				return ParagraphFunction
 			end    
 			function ElementFunction:AddButton(ButtonConfig)
@@ -910,7 +908,8 @@ function OrionLib:MakeWindow(WindowConfig)
 						Size = UDim2.new(1, -12, 1, 0),
 						Position = UDim2.new(0, 12, 0, 0),
 						Font = Enum.Font.GothamBold,
-						Name = "Content"
+						Name = "Content",
+						TextTruncate = Enum.TextTruncate.AtEnd
 					}), "Text"),
 					AddThemeObject(SetProps(MakeElement("Image", ButtonConfig.Icon), {
 						Size = UDim2.new(0, 20, 0, 20),
@@ -931,7 +930,10 @@ function OrionLib:MakeWindow(WindowConfig)
 				AddConnection(Click.MouseButton1Up, function()
 					TweenService:Create(ButtonFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 3)}):Play()
 					spawn(function()
-						ButtonConfig.Callback()
+						local ok, err = pcall(ButtonConfig.Callback)
+						if not ok then
+							warn("[Orion] Button '" .. tostring(ButtonConfig.Name) .. "' callback error: " .. tostring(err))
+						end
 					end)
 				end)
 
@@ -942,6 +944,7 @@ function OrionLib:MakeWindow(WindowConfig)
 				function Button:Set(ButtonText)
 					ButtonFrame.Content.Text = ButtonText
 				end	
+				Button.Destroy = MakeElementDestroy(ButtonFrame)
 
 				return Button
 			end    
@@ -987,22 +990,29 @@ function OrionLib:MakeWindow(WindowConfig)
 						Size = UDim2.new(1, -12, 1, 0),
 						Position = UDim2.new(0, 12, 0, 0),
 						Font = Enum.Font.GothamBold,
-						Name = "Content"
+						Name = "Content",
+						TextTruncate = Enum.TextTruncate.AtEnd
 					}), "Text"),
 					AddThemeObject(MakeElement("Stroke"), "Stroke"),
 					ToggleBox,
 					Click
 				}), "Second")
 
-				function Toggle:Set(Value)
+				function Toggle:Set(Value, Silent)
 					Toggle.Value = Value
 					TweenService:Create(ToggleBox, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Toggle.Value and ToggleConfig.Color or OrionLib.Themes.Default.Divider}):Play()
 					TweenService:Create(ToggleBox.Stroke, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Color = Toggle.Value and ToggleConfig.Color or OrionLib.Themes.Default.Stroke}):Play()
 					TweenService:Create(ToggleBox.Ico, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {ImageTransparency = Toggle.Value and 0 or 1, Size = Toggle.Value and UDim2.new(0, 20, 0, 20) or UDim2.new(0, 8, 0, 8)}):Play()
-					ToggleConfig.Callback(Toggle.Value)
+					if not Silent then
+						local ok, err = pcall(ToggleConfig.Callback, Toggle.Value)
+						if not ok then
+							warn("[Orion] Toggle '" .. tostring(ToggleConfig.Name) .. "' callback error: " .. tostring(err))
+						end
+					end
 				end    
+				Toggle.Destroy = MakeElementDestroy(ToggleFrame)
 
-				Toggle:Set(Toggle.Value)
+				Toggle:Set(Toggle.Value, true)
 
 				AddConnection(Click.MouseEnter, function()
 					TweenService:Create(ToggleFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 3)}):Play()
@@ -1104,7 +1114,7 @@ function OrionLib:MakeWindow(WindowConfig)
 					if Dragging and Input.UserInputType == Enum.UserInputType.MouseMovement then 
 						local SizeScale = math.clamp((Input.Position.X - SliderBar.AbsolutePosition.X) / SliderBar.AbsoluteSize.X, 0, 1)
 						Slider:Set(SliderConfig.Min + ((SliderConfig.Max - SliderConfig.Min) * SizeScale)) 
-						SaveCfg(game.GameId)
+						SaveCfgDebounced()
 					end
 				end)
 
@@ -1743,14 +1753,8 @@ function OrionLib:MakeWindow(WindowConfig)
 				}), "Text")
 			})
 		end
-		return ElementFunction   
+		return ElementFunction
 	end  
-	
-	OrionLib:MakeNotification({
-		Name = "UI Library Upgrade",
-		Content = "New UI Library Available at sirius.menu/discord and sirius.menu/rayfield",
-		Time = 5
-	})
 	
 
 	
