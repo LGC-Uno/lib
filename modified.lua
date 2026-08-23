@@ -29,7 +29,7 @@ local OrionLib = {
 
 -- Marker so scripts can verify they got THIS patched build (3: inline binds,
 -- keyboard-only triggers, "Not set" display, mouse never bindable).
-OrionLib.BlairPatchVersion = 5
+OrionLib.BlairPatchVersion = 6
 
 --Feather Icons https://github.com/evoincorp/lucideblox/tree/master/src/modules/util - Created by 7kayoh
 local Icons = {}
@@ -1122,28 +1122,38 @@ function OrionLib:MakeWindow(WindowConfig)
 
 				-- Expandable settings panel: clicking the row (not the toggle
 				-- box, not the bind box) expands a sub-area with child elements
-				-- created via Toggle:AddToggle / AddLabel / etc. The panel is
-				-- visually distinct from a regular row: an indented darker card
-				-- with an accent bar on the left, plus a chevron marker on the
-				-- row itself that flips when expanded.
+				-- created via Toggle:AddToggle / AddLabel / etc. The panel is a
+				-- card tinted with the toggle's accent color + an accent bar on
+				-- the left; the chevron marker on the row flips from "right"
+				-- (collapsed) to "down" (expanded). Accent brightness follows
+				-- the toggle state (enabled = vivid, disabled = dim).
 				local Holder = nil
 				local Panel = nil
+				local Accent = nil
 				local ExpandIco = nil
 				local Expanded = ToggleConfig.Expanded
 
 				if ToggleConfig.Expandable then
 					ToggleFrame.ClipsDescendants = true
 
-					Panel = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 5), {
+					Panel = SetChildren(SetProps(MakeElement("RoundFrame", ToggleConfig.Color, 0, 6), {
 						Position = UDim2.new(0, 16, 0, 4),
 						Size = UDim2.new(1, -28, 1, -8),
-						BackgroundTransparency = 0.85,
+						BackgroundTransparency = 0.9,
 						ClipsDescendants = true,
 						Name = "Panel"
 					}), {
 						MakeElement("List", 0, 4),
 						MakeElement("Padding", 8, 0, 8, 8)
-					}), "Divider")
+					})
+
+					Accent = SetProps(MakeElement("Frame"), {
+						Position = UDim2.new(0, 8, 0, 8),
+						Size = UDim2.new(0, 3, 1, -16),
+						BackgroundColor3 = ToggleConfig.Color,
+						BackgroundTransparency = 0.15,
+						Name = "Accent"
+					})
 
 					Holder = SetChildren(SetProps(MakeElement("TFrame"), {
 						Position = UDim2.new(0, 0, 0, 38),
@@ -1151,25 +1161,21 @@ function OrionLib:MakeWindow(WindowConfig)
 						Name = "Holder",
 						Visible = Expanded
 					}), {
-						AddThemeObject(SetProps(MakeElement("Frame"), {
-							Position = UDim2.new(0, 8, 0, 8),
-							Size = UDim2.new(0, 3, 1, -16),
-							BackgroundTransparency = 0.2,
-							Name = "Accent"
-						}), "Stroke"),
+						Accent,
 						Panel
 					})
 					Holder.Parent = ToggleFrame
 
-					ExpandIco = AddThemeObject(SetProps(MakeElement("Image", "rbxassetid://7072706796"), {
+					-- Offset-anchored (NOT scale): a scale Y position would slide
+					-- the chevron down into the panel as the row grows.
+					ExpandIco = SetProps(MakeElement("Image", "rbxassetid://7072706796"), {
 						Size = UDim2.new(0, 16, 0, 16),
-						AnchorPoint = Vector2.new(1, 0.5),
-						Position = UDim2.new(1, ToggleConfig.Bindable and -102 or -40, 0.5, 0),
-						ImageColor3 = Color3.fromRGB(240, 240, 240),
-						ImageTransparency = 0.15,
-						Rotation = Expanded and 180 or 0,
+						AnchorPoint = Vector2.new(1, 0),
+						Position = UDim2.new(1, ToggleConfig.Bindable and -102 or -40, 0, 11),
+						ImageColor3 = ToggleConfig.Color,
+						Rotation = Expanded and 0 or -90,
 						Name = "ExpandIco"
-					}), "TextDark")
+					})
 					ExpandIco.Parent = ToggleFrame
 
 					local ToggleClick = SetProps(MakeElement("Button"), {
@@ -1200,7 +1206,7 @@ function OrionLib:MakeWindow(WindowConfig)
 						or UDim2.new(1, 0, 0, 38)
 					TweenService:Create(ToggleFrame, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = TargetSize}):Play()
 					if ExpandIco then
-						TweenService:Create(ExpandIco, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Rotation = Expanded and 180 or 0}):Play()
+						TweenService:Create(ExpandIco, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Rotation = Expanded and 0 or -90}):Play()
 					end
 					if Holder then
 						Holder.Visible = Expanded
@@ -1214,6 +1220,13 @@ function OrionLib:MakeWindow(WindowConfig)
 					TweenService:Create(ToggleBox, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Toggle.Value and ToggleConfig.Color or OrionLib.Themes.Default.Divider}):Play()
 					TweenService:Create(ToggleBox.Stroke, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Color = Toggle.Value and ToggleConfig.Color or OrionLib.Themes.Default.Stroke}):Play()
 					TweenService:Create(ToggleBox.Ico, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {ImageTransparency = Toggle.Value and 0 or 1, Size = Toggle.Value and UDim2.new(0, 20, 0, 20) or UDim2.new(0, 8, 0, 8)}):Play()
+					-- Expandable rows: accent bar / chevron / card tint follow the
+					-- on-off state so an expanded-but-disabled function reads dim.
+					if ToggleConfig.Expandable and Accent then
+						Accent.BackgroundTransparency = Toggle.Value and 0.15 or 0.55
+						ExpandIco.ImageTransparency = Toggle.Value and 0 or 0.4
+						Panel.BackgroundTransparency = Toggle.Value and 0.88 or 0.94
+					end
 					if not Silent then
 						local ok, err = pcall(ToggleConfig.Callback, Toggle.Value)
 						if not ok then
