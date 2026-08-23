@@ -1346,7 +1346,7 @@ function OrionLib:MakeWindow(WindowConfig)
 
 				AddConnection(UserInputService.InputBegan, function(Input)
 					if UserInputService:GetFocusedTextBox() then return end
-					if (Input.KeyCode.Name == Bind.Value or Input.UserInputType.Name == Bind.Value) and not Bind.Binding then
+					if (Input.KeyCode.Name == Bind.Value or Input.UserInputType.Name == Bind.Value) and not Bind.Binding and Bind.Value ~= "Unknown" then
 						if BindConfig.Hold then
 							Holding = true
 							BindConfig.Callback(Holding)
@@ -1400,7 +1400,7 @@ function OrionLib:MakeWindow(WindowConfig)
 					Bind.Binding = false
 					Bind.Value = Key or Bind.Value
 					Bind.Value = Bind.Value.Name or Bind.Value
-					BindBox.Value.Text = Bind.Value
+					BindBox.Value.Text = Bind.Value == "Unknown" and "Not set" or Bind.Value
 				end
 
 				Bind:Set(BindConfig.Default)
