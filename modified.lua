@@ -29,7 +29,7 @@ local OrionLib = {
 
 -- Marker so scripts can verify they got THIS patched build (3: inline binds,
 -- keyboard-only triggers, "Not set" display, mouse never bindable).
-OrionLib.BlairPatchVersion = 3
+OrionLib.BlairPatchVersion = 4
 
 --Feather Icons https://github.com/evoincorp/lucideblox/tree/master/src/modules/util - Created by 7kayoh
 local Icons = {}
@@ -820,11 +820,12 @@ function OrionLib:MakeWindow(WindowConfig)
 			-- LMB on it -> rebind mode ("..."), then press a key.
 			-- RMB on it -> clear the bind back to "Not set".
 			-- Keyboard-only triggers; "Not set" never fires.
-			local function AttachInlineBind(DefaultValue, OnTrigger)
+			local function AttachInlineBind(DefaultValue, OnTrigger, RowHeight)
+				RowHeight = RowHeight or 38
 				local BindClick = AddThemeObject(SetChildren(SetProps(MakeElement("Button"), {
 					Size = UDim2.new(0, 56, 0, 20),
-					Position = UDim2.new(1, -44, 0.5, 0),
-					AnchorPoint = Vector2.new(1, 0.5),
+					Position = UDim2.new(1, -44, 0, math.floor((RowHeight - 20) / 2 + 0.5)),
+					AnchorPoint = Vector2.new(1, 0),
 					ZIndex = 2,
 					BackgroundTransparency = 0,
 					Text = "Not set",
@@ -985,11 +986,11 @@ function OrionLib:MakeWindow(WindowConfig)
 						if not ok then
 							warn("[Orion] Button '" .. tostring(ButtonConfig.Name) .. "' callback error: " .. tostring(err))
 						end
-					end)
+					end, 33)
 				end
 
 				local Click = SetProps(MakeElement("Button"), {
-					Size = UDim2.new(1, 0, 1, 0)
+					Size = UDim2.new(1, 0, 0, 33)
 				})
 
 				local ButtonFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 5), {
@@ -997,7 +998,7 @@ function OrionLib:MakeWindow(WindowConfig)
 					Parent = ItemParent
 				}), {
 					AddThemeObject(SetProps(MakeElement("Label", ButtonConfig.Name, 15), {
-						Size = ButtonConfig.Bindable and UDim2.new(1, -112, 1, 0) or UDim2.new(1, -12, 1, 0),
+						Size = ButtonConfig.Bindable and UDim2.new(1, -112, 0, 33) or UDim2.new(1, -12, 0, 33),
 						Position = UDim2.new(0, 12, 0, 0),
 						Font = Enum.Font.GothamBold,
 						Name = "Content",
@@ -1066,12 +1067,12 @@ function OrionLib:MakeWindow(WindowConfig)
 				end
 
 				local Click = SetProps(MakeElement("Button"), {
-					Size = UDim2.new(1, 0, 1, 0)
+					Size = UDim2.new(1, 0, 0, 38)
 				})
 
 				local ToggleBox = SetChildren(SetProps(MakeElement("RoundFrame", ToggleConfig.Color, 0, 4), {
 					Size = UDim2.new(0, 24, 0, 24),
-					Position = UDim2.new(1, -24, 0.5, 0),
+					Position = UDim2.new(1, -24, 0, 19),
 					AnchorPoint = Vector2.new(0.5, 0.5)
 				}), {
 					SetProps(MakeElement("Stroke"), {
@@ -1093,7 +1094,7 @@ function OrionLib:MakeWindow(WindowConfig)
 				if ToggleConfig.Bindable then
 					BindClick, Bind = AttachInlineBind(ToggleConfig.BindDefault, function()
 						ToggleConfig.BindCallback()
-					end)
+					end, 38)
 				end
 
 				local ToggleFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 5), {
@@ -1101,7 +1102,7 @@ function OrionLib:MakeWindow(WindowConfig)
 					Parent = ItemParent
 				}), {
 					AddThemeObject(SetProps(MakeElement("Label", ToggleConfig.Name, 15), {
-						Size = ToggleConfig.Bindable and UDim2.new(1, -112, 1, 0) or UDim2.new(1, -12, 1, 0),
+						Size = ToggleConfig.Bindable and UDim2.new(1, -112, 0, 38) or UDim2.new(1, -12, 0, 38),
 						Position = UDim2.new(0, 12, 0, 0),
 						Font = Enum.Font.GothamBold,
 						Name = "Content",
@@ -1138,7 +1139,7 @@ function OrionLib:MakeWindow(WindowConfig)
 					Holder.Parent = ToggleFrame
 
 					local ToggleClick = SetProps(MakeElement("Button"), {
-						Size = UDim2.new(0, 38, 1, 0),
+						Size = UDim2.new(0, 38, 0, 38),
 						Position = UDim2.new(1, -38, 0, 0),
 						ZIndex = 2,
 						Text = ""
@@ -1326,7 +1327,7 @@ function OrionLib:MakeWindow(WindowConfig)
 				DropdownConfig.Save = DropdownConfig.Save or false
 
 				local Dropdown = {Value = DropdownConfig.Default, Options = DropdownConfig.Options, Buttons = {}, Toggled = false, Type = "Dropdown", Save = DropdownConfig.Save}
-				local MaxElements = 5
+				local MaxElements = DropdownConfig.MaxElements or 50
 
 				if not table.find(Dropdown.Options, Dropdown.Value) then
 					Dropdown.Value = "..."
@@ -1391,7 +1392,16 @@ function OrionLib:MakeWindow(WindowConfig)
 
 				AddConnection(DropdownList:GetPropertyChangedSignal("AbsoluteContentSize"), function()
 					DropdownContainer.CanvasSize = UDim2.new(0, 0, 0, DropdownList.AbsoluteContentSize.Y)
-				end)  
+					-- Options changed while the dropdown is open (e.g. profile
+					-- list refresh): resize the frame so all options stay visible
+					-- instead of falling back to an inner scrollbar.
+					if Dropdown.Toggled then
+						local Height = (#Dropdown.Options > MaxElements)
+							and (38 + MaxElements * 28)
+							or (DropdownList.AbsoluteContentSize.Y + 38)
+						DropdownFrame.Size = UDim2.new(1, 0, 0, Height)
+					end
+				end)
 
 				local function AddOptions(Options)
 					for _, Option in pairs(Options) do
