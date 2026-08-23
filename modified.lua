@@ -27,6 +27,10 @@ local OrionLib = {
 	SaveCfg = false
 }
 
+-- Marker so scripts can verify they got THIS patched build (3: inline binds,
+-- keyboard-only triggers, "Not set" display, mouse never bindable).
+OrionLib.BlairPatchVersion = 3
+
 --Feather Icons https://github.com/evoincorp/lucideblox/tree/master/src/modules/util - Created by 7kayoh
 local Icons = {}
 
@@ -992,16 +996,15 @@ function OrionLib:MakeWindow(WindowConfig)
 					}),
 				})
 
-				-- Inline keybind box: click it, then press a key. Keyboard only
-				-- (mouse buttons are never captured) and "Not set" never fires.
+				-- Inline keybind box, placed LEFT of the toggle box:
+				-- [ Title .......... ][ bind ][ toggle ]
+				-- Click it, then press a key. Keyboard only; "Not set" never fires.
 				local BindBox, Bind = nil, nil
 				if ToggleConfig.Bindable then
-					ToggleBox.Position = UDim2.new(1, -52, 0.5, 0)
-
 					BindBox = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 4), {
-						Size = UDim2.new(0, 48, 0, 20),
-						Position = UDim2.new(1, -25, 0.5, 0),
-						AnchorPoint = Vector2.new(0.5, 0.5),
+						Size = UDim2.new(0, 52, 0, 20),
+						Position = UDim2.new(1, -44, 0.5, 0),
+						AnchorPoint = Vector2.new(1, 0.5),
 						ZIndex = 2,
 						Name = "BindBox"
 					}), {
@@ -1030,10 +1033,6 @@ function OrionLib:MakeWindow(WindowConfig)
 						BindBox.Value.Text = Bind.Value == "Unknown" and "Not set" or Bind.Value
 					end
 
-					AddConnection(BindBox.Value:GetPropertyChangedSignal("TextBounds"), function()
-						BindBox.Size = UDim2.new(0, math.max(34, BindBox.Value.TextBounds.X + 14), 0, 20)
-					end)
-
 					AddConnection(BindBox.BindClick.InputEnded, function(Input)
 						if Input.UserInputType == Enum.UserInputType.MouseButton1 then
 							if Bind.Binding then return end
@@ -1056,12 +1055,12 @@ function OrionLib:MakeWindow(WindowConfig)
 							elseif string.find(Input.UserInputType.Name, "MouseButton") then
 								Bind:Set(Bind.Value)
 							end
-						elseif Bind.Value ~= "Unknown" and Input.KeyCode.Name == Bind.Value then
+						elseif Input.UserInputType == Enum.UserInputType.Keyboard
+							and Bind.Value ~= "Unknown"
+							and Input.KeyCode.Name == Bind.Value then
 							ToggleConfig.BindCallback()
 						end
 					end)
-
-					Bind:Set(ToggleConfig.BindDefault)
 				end
 
 				local ToggleFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 5), {
@@ -1069,7 +1068,7 @@ function OrionLib:MakeWindow(WindowConfig)
 					Parent = ItemParent
 				}), {
 					AddThemeObject(SetProps(MakeElement("Label", ToggleConfig.Name, 15), {
-						Size = ToggleConfig.Bindable and UDim2.new(1, -96, 1, 0) or UDim2.new(1, -12, 1, 0),
+						Size = ToggleConfig.Bindable and UDim2.new(1, -112, 1, 0) or UDim2.new(1, -12, 1, 0),
 						Position = UDim2.new(0, 12, 0, 0),
 						Font = Enum.Font.GothamBold,
 						Name = "Content",
@@ -1080,6 +1079,15 @@ function OrionLib:MakeWindow(WindowConfig)
 					Click,
 					BindBox
 				}), "Second")
+
+				if Bind then
+					-- Auto width once rendered, and initial text AFTER parenting
+					-- so TextBounds is measured correctly.
+					AddConnection(BindBox.Value:GetPropertyChangedSignal("TextBounds"), function()
+						BindBox.Size = UDim2.new(0, math.max(34, BindBox.Value.TextBounds.X + 14), 0, 20)
+					end)
+					Bind:Set(ToggleConfig.BindDefault)
+				end
 
 				function Toggle:Set(Value, Silent)
 					Toggle.Value = Value
@@ -1432,7 +1440,7 @@ function OrionLib:MakeWindow(WindowConfig)
 
 				AddConnection(UserInputService.InputBegan, function(Input)
 					if UserInputService:GetFocusedTextBox() then return end
-					if (Input.KeyCode.Name == Bind.Value or Input.UserInputType.Name == Bind.Value) and not Bind.Binding and Bind.Value ~= "Unknown" then
+					if (Input.KeyCode.Name == Bind.Value or Input.UserInputType.Name == Bind.Value) and not Bind.Binding and Bind.Value ~= "Unknown" and Input.UserInputType == Enum.UserInputType.Keyboard then
 						if BindConfig.Hold then
 							Holding = true
 							BindConfig.Callback(Holding)
