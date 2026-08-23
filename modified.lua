@@ -1054,6 +1054,8 @@ function OrionLib:MakeWindow(WindowConfig)
 				ToggleConfig.Save = ToggleConfig.Save or false
 				ToggleConfig.Bindable = ToggleConfig.Bindable or false
 				ToggleConfig.BindDefault = ToggleConfig.BindDefault or Enum.KeyCode.Unknown
+				ToggleConfig.Expandable = ToggleConfig.Expandable or false
+				ToggleConfig.Expanded = ToggleConfig.Expanded or false
 
 				local Toggle = {Value = ToggleConfig.Default, Save = ToggleConfig.Save}
 
@@ -1115,6 +1117,60 @@ function OrionLib:MakeWindow(WindowConfig)
 					Toggle.Bind = Bind
 				end
 
+				-- Expandable settings panel: clicking the row (not the toggle
+				-- box, not the bind box) expands a sub-area with child elements
+				-- created via Toggle:AddToggle / AddLabel / etc.
+				local Holder = nil
+				local Expanded = ToggleConfig.Expanded
+
+				if ToggleConfig.Expandable then
+					ToggleFrame.ClipsDescendants = true
+
+					Holder = SetChildren(SetProps(MakeElement("TFrame"), {
+						Position = UDim2.new(0, 0, 0, 38),
+						Size = UDim2.new(1, 0, 1, -38),
+						Name = "Holder",
+						Visible = Expanded
+					}), {
+						MakeElement("List", 0, 4),
+						MakeElement("Padding", 12, 0, 8, 12)
+					})
+					Holder.Parent = ToggleFrame
+
+					local ToggleClick = SetProps(MakeElement("Button"), {
+						Size = UDim2.new(0, 38, 1, 0),
+						Position = UDim2.new(1, -38, 0, 0),
+						ZIndex = 2,
+						Text = ""
+					})
+					ToggleClick.Parent = ToggleFrame
+
+					AddConnection(ToggleClick.MouseButton1Up, function()
+						SaveCfg(game.GameId)
+						Toggle:Set(not Toggle.Value)
+					end)
+
+					AddConnection(Holder.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+						if Expanded then
+							ToggleFrame.Size = UDim2.new(1, 0, 0, Holder.UIListLayout.AbsoluteContentSize.Y + 44)
+						end
+					end)
+				end
+
+				local function SetExpanded(Value)
+					if not ToggleConfig.Expandable then return end
+					Expanded = Value
+					local TargetSize = Expanded
+						and UDim2.new(1, 0, 0, (Holder.UIListLayout.AbsoluteContentSize.Y + 44))
+						or UDim2.new(1, 0, 0, 38)
+					TweenService:Create(ToggleFrame, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = TargetSize}):Play()
+					if Holder then
+						Holder.Visible = Expanded
+					end
+				end
+
+				Toggle.SetExpanded = SetExpanded
+
 				function Toggle:Set(Value, Silent)
 					Toggle.Value = Value
 					TweenService:Create(ToggleBox, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Toggle.Value and ToggleConfig.Color or OrionLib.Themes.Default.Divider}):Play()
@@ -1142,7 +1198,11 @@ function OrionLib:MakeWindow(WindowConfig)
 				AddConnection(Click.MouseButton1Up, function()
 					TweenService:Create(ToggleFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(OrionLib.Themes[OrionLib.SelectedTheme].Second.R * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.G * 255 + 3, OrionLib.Themes[OrionLib.SelectedTheme].Second.B * 255 + 3)}):Play()
 					SaveCfg(game.GameId)
-					Toggle:Set(not Toggle.Value)
+					if ToggleConfig.Expandable then
+						SetExpanded(not Expanded)
+					else
+						Toggle:Set(not Toggle.Value)
+					end
 				end)
 
 				AddConnection(Click.MouseButton1Down, function()
@@ -1151,9 +1211,16 @@ function OrionLib:MakeWindow(WindowConfig)
 
 				if ToggleConfig.Flag then
 					OrionLib.Flags[ToggleConfig.Flag] = Toggle
-				end	
+				end
+
+				if Holder then
+					for i, v in next, GetElements(Holder) do
+						Toggle[i] = v
+					end
+				end
+
 				return Toggle
-			end  
+			end
 			function ElementFunction:AddSlider(SliderConfig)
 				SliderConfig = SliderConfig or {}
 				SliderConfig.Name = SliderConfig.Name or "Slider"
