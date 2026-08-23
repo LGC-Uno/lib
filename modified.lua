@@ -29,7 +29,7 @@ local OrionLib = {
 
 -- Marker so scripts can verify they got THIS patched build (3: inline binds,
 -- keyboard-only triggers, "Not set" display, mouse never bindable).
-OrionLib.BlairPatchVersion = 4
+OrionLib.BlairPatchVersion = 5
 
 --Feather Icons https://github.com/evoincorp/lucideblox/tree/master/src/modules/util - Created by 7kayoh
 local Icons = {}
@@ -1102,7 +1102,9 @@ function OrionLib:MakeWindow(WindowConfig)
 					Parent = ItemParent
 				}), {
 					AddThemeObject(SetProps(MakeElement("Label", ToggleConfig.Name, 15), {
-						Size = ToggleConfig.Bindable and UDim2.new(1, -112, 0, 38) or UDim2.new(1, -12, 0, 38),
+						Size = ToggleConfig.Bindable
+							and UDim2.new(1, ToggleConfig.Expandable and -132 or -112, 0, 38)
+							or UDim2.new(1, ToggleConfig.Expandable and -56 or -12, 0, 38),
 						Position = UDim2.new(0, 12, 0, 0),
 						Font = Enum.Font.GothamBold,
 						Name = "Content",
@@ -1120,12 +1122,28 @@ function OrionLib:MakeWindow(WindowConfig)
 
 				-- Expandable settings panel: clicking the row (not the toggle
 				-- box, not the bind box) expands a sub-area with child elements
-				-- created via Toggle:AddToggle / AddLabel / etc.
+				-- created via Toggle:AddToggle / AddLabel / etc. The panel is
+				-- visually distinct from a regular row: an indented darker card
+				-- with an accent bar on the left, plus a chevron marker on the
+				-- row itself that flips when expanded.
 				local Holder = nil
+				local Panel = nil
+				local ExpandIco = nil
 				local Expanded = ToggleConfig.Expanded
 
 				if ToggleConfig.Expandable then
 					ToggleFrame.ClipsDescendants = true
+
+					Panel = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 5), {
+						Position = UDim2.new(0, 16, 0, 4),
+						Size = UDim2.new(1, -28, 1, -8),
+						BackgroundTransparency = 0.85,
+						ClipsDescendants = true,
+						Name = "Panel"
+					}), {
+						MakeElement("List", 0, 4),
+						MakeElement("Padding", 8, 0, 8, 8)
+					}), "Divider")
 
 					Holder = SetChildren(SetProps(MakeElement("TFrame"), {
 						Position = UDim2.new(0, 0, 0, 38),
@@ -1133,10 +1151,26 @@ function OrionLib:MakeWindow(WindowConfig)
 						Name = "Holder",
 						Visible = Expanded
 					}), {
-						MakeElement("List", 0, 4),
-						MakeElement("Padding", 12, 0, 8, 12)
+						AddThemeObject(SetProps(MakeElement("Frame"), {
+							Position = UDim2.new(0, 8, 0, 8),
+							Size = UDim2.new(0, 3, 1, -16),
+							BackgroundTransparency = 0.2,
+							Name = "Accent"
+						}), "Stroke"),
+						Panel
 					})
 					Holder.Parent = ToggleFrame
+
+					ExpandIco = AddThemeObject(SetProps(MakeElement("Image", "rbxassetid://7072706796"), {
+						Size = UDim2.new(0, 16, 0, 16),
+						AnchorPoint = Vector2.new(1, 0.5),
+						Position = UDim2.new(1, ToggleConfig.Bindable and -102 or -40, 0.5, 0),
+						ImageColor3 = Color3.fromRGB(240, 240, 240),
+						ImageTransparency = 0.15,
+						Rotation = Expanded and 180 or 0,
+						Name = "ExpandIco"
+					}), "TextDark")
+					ExpandIco.Parent = ToggleFrame
 
 					local ToggleClick = SetProps(MakeElement("Button"), {
 						Size = UDim2.new(0, 38, 0, 38),
@@ -1151,9 +1185,9 @@ function OrionLib:MakeWindow(WindowConfig)
 						Toggle:Set(not Toggle.Value)
 					end)
 
-					AddConnection(Holder.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+					AddConnection(Panel.UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
 						if Expanded then
-							ToggleFrame.Size = UDim2.new(1, 0, 0, Holder.UIListLayout.AbsoluteContentSize.Y + 44)
+							ToggleFrame.Size = UDim2.new(1, 0, 0, Panel.UIListLayout.AbsoluteContentSize.Y + 56)
 						end
 					end)
 				end
@@ -1162,9 +1196,12 @@ function OrionLib:MakeWindow(WindowConfig)
 					if not ToggleConfig.Expandable then return end
 					Expanded = Value
 					local TargetSize = Expanded
-						and UDim2.new(1, 0, 0, (Holder.UIListLayout.AbsoluteContentSize.Y + 44))
+						and UDim2.new(1, 0, 0, (Panel.UIListLayout.AbsoluteContentSize.Y + 56))
 						or UDim2.new(1, 0, 0, 38)
 					TweenService:Create(ToggleFrame, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = TargetSize}):Play()
+					if ExpandIco then
+						TweenService:Create(ExpandIco, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Rotation = Expanded and 180 or 0}):Play()
+					end
 					if Holder then
 						Holder.Visible = Expanded
 					end
@@ -1215,7 +1252,7 @@ function OrionLib:MakeWindow(WindowConfig)
 				end
 
 				if Holder then
-					for i, v in next, GetElements(Holder) do
+					for i, v in next, GetElements(Panel) do
 						Toggle[i] = v
 					end
 				end
