@@ -243,7 +243,9 @@ local function SaveCfg(Name)
 	writefile(OrionLib.Folder .. "/" .. Name .. ".txt", tostring(HttpService:JSONEncode(Data)))
 end
 
-local WhitelistedMouse = {Enum.UserInputType.MouseButton1, Enum.UserInputType.MouseButton2,Enum.UserInputType.MouseButton3}
+-- Mouse buttons are intentionally NOT bindable: they are used for UI clicks
+-- and accidentally capturing one would fire the bind on every click.
+local WhitelistedMouse = {}
 local BlacklistedKeys = {Enum.KeyCode.Unknown,Enum.KeyCode.W,Enum.KeyCode.A,Enum.KeyCode.S,Enum.KeyCode.D,Enum.KeyCode.Up,Enum.KeyCode.Left,Enum.KeyCode.Down,Enum.KeyCode.Right,Enum.KeyCode.Slash,Enum.KeyCode.Tab,Enum.KeyCode.Backspace,Enum.KeyCode.Escape}
 
 local SaveCfgDebounceThread = nil
@@ -956,8 +958,16 @@ function OrionLib:MakeWindow(WindowConfig)
 				ToggleConfig.Color = ToggleConfig.Color or Color3.fromRGB(9, 99, 195)
 				ToggleConfig.Flag = ToggleConfig.Flag or nil
 				ToggleConfig.Save = ToggleConfig.Save or false
+				ToggleConfig.Bindable = ToggleConfig.Bindable or false
+				ToggleConfig.BindDefault = ToggleConfig.BindDefault or Enum.KeyCode.Unknown
 
 				local Toggle = {Value = ToggleConfig.Default, Save = ToggleConfig.Save}
+
+				if ToggleConfig.Bindable and ToggleConfig.BindCallback == nil then
+					ToggleConfig.BindCallback = function()
+						Toggle:Set(not Toggle.Value)
+					end
+				end
 
 				local Click = SetProps(MakeElement("Button"), {
 					Size = UDim2.new(1, 0, 1, 0)
@@ -982,12 +992,84 @@ function OrionLib:MakeWindow(WindowConfig)
 					}),
 				})
 
+				-- Inline keybind box: click it, then press a key. Keyboard only
+				-- (mouse buttons are never captured) and "Not set" never fires.
+				local BindBox, Bind = nil, nil
+				if ToggleConfig.Bindable then
+					ToggleBox.Position = UDim2.new(1, -52, 0.5, 0)
+
+					BindBox = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 4), {
+						Size = UDim2.new(0, 48, 0, 20),
+						Position = UDim2.new(1, -25, 0.5, 0),
+						AnchorPoint = Vector2.new(0.5, 0.5),
+						ZIndex = 2,
+						Name = "BindBox"
+					}), {
+						AddThemeObject(MakeElement("Stroke"), "Stroke"),
+						AddThemeObject(SetProps(MakeElement("Label", "Not set", 12), {
+							Size = UDim2.new(1, -4, 1, 0),
+							Font = Enum.Font.GothamBold,
+							TextXAlignment = Enum.TextXAlignment.Center,
+							Name = "Value"
+						}), "Text"),
+						SetProps(MakeElement("Button"), {
+							Size = UDim2.new(1, 0, 1, 0),
+							BackgroundTransparency = 1,
+							Text = "",
+							ZIndex = 3,
+							Name = "BindClick"
+						})
+					}), "Main")
+
+					Bind = {Value = "Unknown", Binding = false}
+
+					function Bind:Set(Key)
+						Bind.Binding = false
+						Bind.Value = Key or Bind.Value
+						Bind.Value = Bind.Value.Name or Bind.Value
+						BindBox.Value.Text = Bind.Value == "Unknown" and "Not set" or Bind.Value
+					end
+
+					AddConnection(BindBox.Value:GetPropertyChangedSignal("TextBounds"), function()
+						BindBox.Size = UDim2.new(0, math.max(34, BindBox.Value.TextBounds.X + 14), 0, 20)
+					end)
+
+					AddConnection(BindBox.BindClick.InputEnded, function(Input)
+						if Input.UserInputType == Enum.UserInputType.MouseButton1 then
+							if Bind.Binding then return end
+							Bind.Binding = true
+							BindBox.Value.Text = "..."
+						end
+					end)
+
+					AddConnection(UserInputService.InputBegan, function(Input)
+						if UserInputService:GetFocusedTextBox() then return end
+						if Bind.Binding then
+							local Key
+							pcall(function()
+								if not CheckKey(BlacklistedKeys, Input.KeyCode) then
+									Key = Input.KeyCode
+								end
+							end)
+							if Key then
+								Bind:Set(Key)
+							elseif string.find(Input.UserInputType.Name, "MouseButton") then
+								Bind:Set(Bind.Value)
+							end
+						elseif Bind.Value ~= "Unknown" and Input.KeyCode.Name == Bind.Value then
+							ToggleConfig.BindCallback()
+						end
+					end)
+
+					Bind:Set(ToggleConfig.BindDefault)
+				end
+
 				local ToggleFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 5), {
 					Size = UDim2.new(1, 0, 0, 38),
 					Parent = ItemParent
 				}), {
 					AddThemeObject(SetProps(MakeElement("Label", ToggleConfig.Name, 15), {
-						Size = UDim2.new(1, -12, 1, 0),
+						Size = ToggleConfig.Bindable and UDim2.new(1, -96, 1, 0) or UDim2.new(1, -12, 1, 0),
 						Position = UDim2.new(0, 12, 0, 0),
 						Font = Enum.Font.GothamBold,
 						Name = "Content",
@@ -995,7 +1077,8 @@ function OrionLib:MakeWindow(WindowConfig)
 					}), "Text"),
 					AddThemeObject(MakeElement("Stroke"), "Stroke"),
 					ToggleBox,
-					Click
+					Click,
+					BindBox
 				}), "Second")
 
 				function Toggle:Set(Value, Silent)
@@ -1011,6 +1094,9 @@ function OrionLib:MakeWindow(WindowConfig)
 					end
 				end    
 				Toggle.Destroy = MakeElementDestroy(ToggleFrame)
+				if Bind then
+					Toggle.Bind = Bind
+				end
 
 				Toggle:Set(Toggle.Value, true)
 
