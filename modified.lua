@@ -1,3 +1,6 @@
+
+
+
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -12,18 +15,19 @@ local OrionLib = {
 	Flags = {},
 	Themes = {
 		Default = {
-			Main = Color3.fromRGB(25, 25, 25),
-			Second = Color3.fromRGB(32, 32, 32),
-			Stroke = Color3.fromRGB(60, 60, 60),
-			Divider = Color3.fromRGB(60, 60, 60),
-			Text = Color3.fromRGB(240, 240, 240),
-			TextDark = Color3.fromRGB(150, 150, 150)
+			Main = Color3.fromRGB(18, 18, 23),
+			Second = Color3.fromRGB(27, 27, 34),
+			Stroke = Color3.fromRGB(58, 58, 70),
+			Divider = Color3.fromRGB(48, 48, 58),
+			Text = Color3.fromRGB(242, 242, 247),
+			TextDark = Color3.fromRGB(165, 165, 180)
 		}
 	},
 	SelectedTheme = "Default",
 	Folder = nil,
 	SaveCfg = false
 }
+
 
 --Feather Icons https://github.com/evoincorp/lucideblox/tree/master/src/modules/util - Created by 7kayoh
 local Icons = {}
@@ -543,7 +547,7 @@ function OrionLib:MakeWindow(WindowConfig)
 	})
 
 	local WindowStuff = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 10), {
-		Size = UDim2.new(0, 150, 1, -50),
+		Size = UDim2.new(0, 165, 1, -50),
 		Position = UDim2.new(0, 0, 0, 50)
 	}), {
 		AddThemeObject(SetProps(MakeElement("Frame"), {
@@ -615,8 +619,8 @@ function OrionLib:MakeWindow(WindowConfig)
 
 	local MainWindow = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 10), {
 		Parent = Orion,
-		Position = UDim2.new(0.5, -307, 0.5, -172),
-		Size = UDim2.new(0, 615, 0, 344),
+		Position = UDim2.new(0.5, -340, 0.5, -215),
+		Size = UDim2.new(0, 680, 0, 430),
 		ClipsDescendants = true
 	}), {
 		--SetProps(MakeElement("Image", "rbxassetid://3523728077"), {
@@ -679,7 +683,7 @@ function OrionLib:MakeWindow(WindowConfig)
 
 	AddConnection(MinimizeBtn.MouseButton1Up, function()
 		if Minimized then
-			TweenService:Create(MainWindow, TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(0, 615, 0, 344)}):Play()
+			TweenService:Create(MainWindow, TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(0, 680, 0, 430)}):Play()
 			MinimizeBtn.Ico.Image = "rbxassetid://7072719338"
 			wait(.02)
 			MainWindow.ClipsDescendants = false
@@ -1174,7 +1178,7 @@ function OrionLib:MakeWindow(WindowConfig)
 						Size = UDim2.new(0, 16, 0, 16),
 						AnchorPoint = Vector2.new(1, 0),
 						Position = UDim2.new(1, ToggleConfig.Bindable and -102 or -40, 0, 11),
-						ImageColor3 = ToggleConfig.Color,
+						ImageColor3 = OrionLib.Themes[OrionLib.SelectedTheme].TextDark,
 						Rotation = Expanded and 0 or -90,
 						Name = "ExpandIco"
 					})
@@ -1226,7 +1230,7 @@ function OrionLib:MakeWindow(WindowConfig)
 					-- on-off state so an expanded-but-disabled function reads dim.
 					if ToggleConfig.Expandable and Accent then
 						Accent.BackgroundTransparency = Toggle.Value and 0.15 or 0.55
-						ExpandIco.ImageTransparency = Toggle.Value and 0 or 0.4
+						ExpandIco.ImageTransparency = Toggle.Value and 0 or 0.15
 						Panel.BackgroundTransparency = Toggle.Value and 0.88 or 0.94
 					end
 					if not Silent then
@@ -1377,6 +1381,11 @@ function OrionLib:MakeWindow(WindowConfig)
 				DropdownConfig.Callback = DropdownConfig.Callback or function() end
 				DropdownConfig.Flag = DropdownConfig.Flag or nil
 				DropdownConfig.Save = DropdownConfig.Save or false
+				DropdownConfig.ArrowColor = DropdownConfig.ArrowColor or OrionLib.Themes[OrionLib.SelectedTheme].TextDark
+				DropdownConfig.OptionColor = DropdownConfig.OptionColor or OrionLib.Themes[OrionLib.SelectedTheme].Divider
+				DropdownConfig.OptionTextColor = DropdownConfig.OptionTextColor or OrionLib.Themes[OrionLib.SelectedTheme].Text
+				DropdownConfig.SelectedTextColor = DropdownConfig.SelectedTextColor or OrionLib.Themes[OrionLib.SelectedTheme].TextDark
+
 
 				local Dropdown = {Value = DropdownConfig.Default, Options = DropdownConfig.Options, Buttons = {}, Toggled = false, Type = "Dropdown", Save = DropdownConfig.Save}
 				local MaxElements = DropdownConfig.MaxElements or 50
@@ -1413,18 +1422,19 @@ function OrionLib:MakeWindow(WindowConfig)
 							Font = Enum.Font.GothamBold,
 							Name = "Content"
 						}), "Text"),
-						AddThemeObject(SetProps(MakeElement("Image", "rbxassetid://7072706796"), {
+						SetProps(MakeElement("Image", "rbxassetid://7072706796"), {
 							Size = UDim2.new(0, 20, 0, 20),
 							AnchorPoint = Vector2.new(0, 0.5),
 							Position = UDim2.new(1, -30, 0.5, 0),
-							ImageColor3 = Color3.fromRGB(240, 240, 240),
+							ImageColor3 = DropdownConfig.ArrowColor,
 							Name = "Ico"
-						}), "TextDark"),
+						}),
 						AddThemeObject(SetProps(MakeElement("Label", "Selected", 13), {
 							Size = UDim2.new(1, -40, 1, 0),
 							Font = Enum.Font.Gotham,
 							Name = "Selected",
-							TextXAlignment = Enum.TextXAlignment.Right
+							TextXAlignment = Enum.TextXAlignment.Right,
+							TextColor3 = DropdownConfig.SelectedTextColor
 						}), "TextDark"),
 						AddThemeObject(SetProps(MakeElement("Frame"), {
 							Size = UDim2.new(1, 0, 0, 1),
@@ -1457,12 +1467,13 @@ function OrionLib:MakeWindow(WindowConfig)
 
 				local function AddOptions(Options)
 					for _, Option in pairs(Options) do
-						local OptionBtn = AddThemeObject(SetProps(SetChildren(MakeElement("Button", Color3.fromRGB(40, 40, 40)), {
+						local OptionBtn = AddThemeObject(SetProps(SetChildren(MakeElement("Button", DropdownConfig.OptionColor), {
 							MakeElement("Corner", 0, 6),
 							AddThemeObject(SetProps(MakeElement("Label", Option, 13, 0.4), {
 								Position = UDim2.new(0, 8, 0, 0),
 								Size = UDim2.new(1, -8, 1, 0),
-								Name = "Title"
+								Name = "Title",
+								TextColor3 = DropdownConfig.OptionTextColor
 							}), "Text")
 						}), {
 							Parent = DropdownContainer,
