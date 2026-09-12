@@ -1,5 +1,6 @@
 
 
+
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -29,7 +30,7 @@ local OrionLib = {
 
 -- Marker so scripts can verify they got THIS patched build (3: inline binds,
 -- keyboard-only triggers, "Not set" display, mouse never bindable).
-OrionLib.BlairPatchVersion = 6
+OrionLib.BlairPatchVersion = 7
 
 --Feather Icons https://github.com/evoincorp/lucideblox/tree/master/src/modules/util - Created by 7kayoh
 local Icons = {}
@@ -39,8 +40,10 @@ local Success, Response = pcall(function()
 end)
 
 if not Success then
-	warn("\nOrion Library - Failed to load Feather Icons. Error code: " .. Response .. "\n")
-end	
+	-- Feather icons are optional. Keep the library quiet when the remote JSON
+	-- is unavailable or malformed; asset-id icons continue to work normally.
+	Icons = {}
+end
 
 local function GetIcon(IconName)
 	if Icons[IconName] ~= nil then
@@ -820,7 +823,7 @@ function OrionLib:MakeWindow(WindowConfig)
 			-- LMB on it -> rebind mode ("..."), then press a key.
 			-- RMB on it -> clear the bind back to "Not set".
 			-- Keyboard-only triggers; "Not set" never fires.
-			local function AttachInlineBind(DefaultValue, OnTrigger, RowHeight)
+			local function AttachInlineBind(DefaultValue, OnTrigger, RowHeight, SaveKey)
 				RowHeight = RowHeight or 38
 				local BindClick = AddThemeObject(SetChildren(SetProps(MakeElement("Button"), {
 					Size = UDim2.new(0, 56, 0, 20),
@@ -841,7 +844,7 @@ function OrionLib:MakeWindow(WindowConfig)
 					AddThemeObject(MakeElement("Stroke"), "Stroke")
 				}), "Main")
 
-				local Bind = {Value = "Unknown", Binding = false}
+				local Bind = {Value = "Unknown", Binding = false, Type = "Bind", Save = true}
 
 				function Bind:Set(Key)
 					Bind.Binding = false
@@ -850,9 +853,14 @@ function OrionLib:MakeWindow(WindowConfig)
 					BindClick.Text = Bind.Value == "Unknown" and "Not set" or Bind.Value
 				end
 
+				if SaveKey and SaveKey ~= "" then
+					OrionLib.Flags["__InlineBind_" .. tostring(SaveKey)] = Bind
+				end
+
 				AddConnection(BindClick.InputBegan, function(Input)
 					if Input.UserInputType == Enum.UserInputType.MouseButton2 then
 						Bind:Set(Enum.KeyCode.Unknown)
+						if OrionLib.SaveCfg then SaveCfgDebounced() end
 					end
 				end)
 
@@ -875,6 +883,7 @@ function OrionLib:MakeWindow(WindowConfig)
 						end)
 						if Key then
 							Bind:Set(Key)
+							if OrionLib.SaveCfg then SaveCfgDebounced() end
 						elseif string.find(Input.UserInputType.Name, "MouseButton") then
 							Bind:Set(Bind.Value)
 						end
@@ -986,7 +995,7 @@ function OrionLib:MakeWindow(WindowConfig)
 						if not ok then
 							warn("[Orion] Button '" .. tostring(ButtonConfig.Name) .. "' callback error: " .. tostring(err))
 						end
-					end, 33)
+					end, 33, "Button_" .. tostring(ButtonConfig.Flag or ButtonConfig.Name))
 				end
 
 				local Click = SetProps(MakeElement("Button"), {
@@ -1094,7 +1103,7 @@ function OrionLib:MakeWindow(WindowConfig)
 				if ToggleConfig.Bindable then
 					BindClick, Bind = AttachInlineBind(ToggleConfig.BindDefault, function()
 						ToggleConfig.BindCallback()
-					end, 38)
+					end, 38, "Toggle_" .. tostring(ToggleConfig.Flag or ToggleConfig.Name))
 				end
 
 				local ToggleFrame = AddThemeObject(SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(255, 255, 255), 0, 5), {
