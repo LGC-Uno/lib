@@ -25,10 +25,6 @@ local OrionLib = {
 	SaveCfg = false
 }
 
--- Marker so scripts can verify they got THIS patched build (3: inline binds,
--- keyboard-only triggers, "Not set" display, mouse never bindable).
-OrionLib.BlairPatchVersion = 7
-
 --Feather Icons https://github.com/evoincorp/lucideblox/tree/master/src/modules/util - Created by 7kayoh
 local Icons = {}
 
