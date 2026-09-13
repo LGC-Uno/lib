@@ -683,6 +683,17 @@ function OrionLib:MakeWindow(WindowConfig)
 		end
 	end)
 
+	-- While the menu is open, keep the mouse free even if the game tries to
+	-- recapture it (shift-lock / first-person style camera).
+	AddConnection(RunService.RenderStepped, function()
+		if MainWindow.Visible then
+			UserInputService.MouseIconEnabled = true
+			if UserInputService.MouseBehavior ~= Enum.MouseBehavior.Default then
+				UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+			end
+		end
+	end)
+
 	AddConnection(MinimizeBtn.MouseButton1Up, function()
 		if Minimized then
 			TweenService:Create(MainWindow, TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(0, 610, 0, 390)}):Play()
