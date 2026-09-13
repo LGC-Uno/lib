@@ -683,6 +683,15 @@ function OrionLib:MakeWindow(WindowConfig)
 		end
 	end)
 
+	-- Keep the mouse free while the Orion UI is open. This prevents the
+	-- camera/input system from forcing the cursor into a locked/centered state.
+	AddConnection(RunService.RenderStepped, function()
+		if MainWindow.Visible then
+			UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+			UserInputService.MouseIconEnabled = true
+		end
+	end)
+
 	AddConnection(MinimizeBtn.MouseButton1Up, function()
 		if Minimized then
 			TweenService:Create(MainWindow, TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(0, 610, 0, 390)}):Play()
