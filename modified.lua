@@ -683,17 +683,6 @@ function OrionLib:MakeWindow(WindowConfig)
 		end
 	end)
 
-	-- While the menu is open, keep the mouse free even if the game tries to
-	-- recapture it (shift-lock / first-person style camera).
-	AddConnection(RunService.RenderStepped, function()
-		if MainWindow.Visible then
-			UserInputService.MouseIconEnabled = true
-			if UserInputService.MouseBehavior ~= Enum.MouseBehavior.Default then
-				UserInputService.MouseBehavior = Enum.MouseBehavior.Default
-			end
-		end
-	end)
-
 	AddConnection(MinimizeBtn.MouseButton1Up, function()
 		if Minimized then
 			TweenService:Create(MainWindow, TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(0, 610, 0, 390)}):Play()
@@ -1374,8 +1363,9 @@ function OrionLib:MakeWindow(WindowConfig)
 				function Slider:Set(Value)
 					self.Value = math.clamp(Round(Value, SliderConfig.Increment), SliderConfig.Min, SliderConfig.Max)
 					TweenService:Create(SliderDrag,TweenInfo.new(.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),{Size = UDim2.fromScale((self.Value - SliderConfig.Min) / (SliderConfig.Max - SliderConfig.Min), 1)}):Play()
-					SliderBar.Value.Text = tostring(self.Value) .. " " .. SliderConfig.ValueName
-					SliderDrag.Value.Text = tostring(self.Value) .. " " .. SliderConfig.ValueName
+					local suffix = SliderConfig.ValueName == "x" and "x" or ((SliderConfig.ValueName ~= "") and (" " .. SliderConfig.ValueName) or "")
+                    SliderBar.Value.Text = tostring(self.Value) .. suffix
+                    SliderDrag.Value.Text = tostring(self.Value) .. suffix
 					SliderConfig.Callback(self.Value)
 				end      
 
@@ -1397,11 +1387,12 @@ function OrionLib:MakeWindow(WindowConfig)
 				DropdownConfig.OptionColor = DropdownConfig.OptionColor or OrionLib.Themes[OrionLib.SelectedTheme].Main
 				DropdownConfig.OptionTextColor = DropdownConfig.OptionTextColor or OrionLib.Themes[OrionLib.SelectedTheme].Text
 				DropdownConfig.SelectedTextColor = DropdownConfig.SelectedTextColor or OrionLib.Themes[OrionLib.SelectedTheme].Text
-				local Dropdown = {Value = DropdownConfig.Default, Options = DropdownConfig.Options, Buttons = {}, Toggled = false, Type = "Dropdown", Save = DropdownConfig.Save}
+                DropdownConfig.Multi = DropdownConfig.Multi or false
+                local Dropdown = {Value = DropdownConfig.Default, Options = DropdownConfig.Options, Buttons = {}, Toggled = false, Type = "Dropdown", Save = DropdownConfig.Save, Multi = DropdownConfig.Multi, Selected = {}}
 				local MaxElements = DropdownConfig.MaxElements or 6
 				local HeaderHeight = 42
 				local OptionHeight = 26
-				if not table.find(Dropdown.Options, Dropdown.Value) then Dropdown.Value = "..." end
+
 
 				local DropdownList = MakeElement("List", 0, 3)
 				local DropdownContainer = AddThemeObject(SetProps(SetChildren(MakeElement("ScrollFrame", Color3.fromRGB(255,255,255), 4), {
@@ -1486,12 +1477,19 @@ function OrionLib:MakeWindow(WindowConfig)
 							ClipsDescendants = true
 						}), "Main")
 						AddConnection(OptionBtn.MouseButton1Click, function()
-							Dropdown:Set(Option)
-							Dropdown.Toggled = false
-							TweenService:Create(DropdownFrame, TweenInfo.new(.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1,0,0,HeaderHeight)}):Play()
-							TweenService:Create(ValuePill.Ico, TweenInfo.new(.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Rotation = 0}):Play()
-							SaveCfg(game.GameId)
-						end)
+                        if Dropdown.Multi then
+                            Dropdown.Selected[Option] = not Dropdown.Selected[Option]
+                            Dropdown:Set(Dropdown.Selected)
+                            resize()
+                            if OrionLib.SaveCfg then SaveCfgDebounced() end
+                        else
+                            Dropdown:Set(Option)
+                            Dropdown.Toggled = false
+                            TweenService:Create(DropdownFrame, TweenInfo.new(.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1,0,0,HeaderHeight)}):Play()
+                            TweenService:Create(ValuePill.Ico, TweenInfo.new(.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Rotation = 0}):Play()
+                            SaveCfg(game.GameId)
+                        end
+                    end)
 						Dropdown.Buttons[Option] = OptionBtn
 					end
 				end
@@ -1507,19 +1505,46 @@ function OrionLib:MakeWindow(WindowConfig)
 				end
 
 				function Dropdown:Set(Value)
-					if not table.find(Dropdown.Options, Value) then
-						Dropdown.Value = "..."
-						ValuePill.Selected.Text = Dropdown.Value
-						return
-					end
-					Dropdown.Value = Value
-					ValuePill.Selected.Text = Value
-					for option, v in pairs(Dropdown.Buttons) do
-						v.BackgroundTransparency = (option == Value) and 0.05 or 0.45
-						v.Title.TextTransparency = (option == Value) and 0 or 0.18
-					end
-					return DropdownConfig.Callback(Dropdown.Value)
-				end
+                    if Dropdown.Multi then
+                        if type(Value) == "table" then
+                            Dropdown.Selected = {}
+                            local names = {}
+                            for _, option in ipairs(Dropdown.Options) do
+                                if Value[option] then
+                                    Dropdown.Selected[option] = true
+                                    table.insert(names, option)
+                                end
+                            end
+                            Dropdown.Value = table.clone(Dropdown.Selected)
+                            if #names == 0 then
+                                ValuePill.Selected.Text = "None"
+                            elseif #names <= 2 then
+                                ValuePill.Selected.Text = table.concat(names, ", ")
+                            else
+                                ValuePill.Selected.Text = tostring(#names) .. " selected"
+                            end
+                            for option, v in pairs(Dropdown.Buttons) do
+                                local selected = Dropdown.Selected[option] == true
+                                v.BackgroundTransparency = selected and 0.05 or 0.45
+                                v.Title.TextTransparency = selected and 0 or 0.18
+                            end
+                            return DropdownConfig.Callback(table.clone(Dropdown.Selected))
+                        end
+                        return
+                    end
+                    if not table.find(Dropdown.Options, Value) then
+                        Dropdown.Value = "..."
+                        ValuePill.Selected.Text = Dropdown.Value
+                        return
+                    end
+                    Dropdown.Value = Value
+                    ValuePill.Selected.Text = Value
+                    for option, v in pairs(Dropdown.Buttons) do
+                        v.BackgroundTransparency = (option == Value) and 0.05 or 0.45
+                        v.Title.TextTransparency = (option == Value) and 0 or 0.18
+                    end
+                    return DropdownConfig.Callback(Dropdown.Value)
+                end
 
 				AddConnection(Click.MouseButton1Click, function()
 					Dropdown.Toggled = not Dropdown.Toggled
@@ -1530,8 +1555,17 @@ function OrionLib:MakeWindow(WindowConfig)
 					end
 				end)
 
-				Dropdown:Refresh(Dropdown.Options, false)
-				Dropdown:Set(Dropdown.Value)
+                Dropdown:Refresh(Dropdown.Options, false)
+                if Dropdown.Multi then
+                    local initial = type(DropdownConfig.Default) == "table" and DropdownConfig.Default or {}
+                    for _, option in ipairs(Dropdown.Options) do
+                        if initial[option] then Dropdown.Selected[option] = true end
+                    end
+                    Dropdown:Set(Dropdown.Selected)
+                else
+                    if not table.find(Dropdown.Options, Dropdown.Value) then Dropdown.Value = "..." end
+                    Dropdown:Set(Dropdown.Value)
+                end
 				if DropdownConfig.Flag then OrionLib.Flags[DropdownConfig.Flag] = Dropdown end
 				return Dropdown
 			end
